@@ -526,7 +526,7 @@ ${captions}
 
 const cron = require("node-cron");
 
-cron.schedule("* * * * *", async () => {
+cron.schedule("0 8 * * *", async () => {
 
   console.log("Checking all sheets...");
 
