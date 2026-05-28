@@ -1,32 +1,34 @@
 
+require("dotenv").config();
+
 const express = require("express");
 const mongoose = require("mongoose");
 const axios = require("axios");
 const FormData = require("form-data");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const fs = require("fs");
-const genAI = new GoogleGenerativeAI({ GEMINI_API_KEY });
-const SHEET_URL = "https://opensheet.elk.sh//Sheet1";
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const SHEET_URL = process.env.SHEET_URL || "https://opensheet.elk.sh//Sheet1";
 
 const CELEBRATION_SHEET_URL =
-  "https://opensheet.elk.sh/1R_YkSwYm5b_e7wj8A0vbnbjTS3ZJG0D1pXZXZKThPSw/Celebrations";
+  process.env.CELEBRATION_SHEET_URL || "https://opensheet.elk.sh/1R_YkSwYm5b_e7wj8A0vbnbjTS3ZJG0D1pXZXZKThPSw/Celebrations";
 
 const REMINDER_SHEET_URL =
-  "https://opensheet.elk.sh/1R_YkSwYm5b_e7wj8A0vbnbjTS3ZJG0D1pXZXZKThPSw/Reminders";
+  process.env.REMINDER_SHEET_URL || "https://opensheet.elk.sh/1R_YkSwYm5b_e7wj8A0vbnbjTS3ZJG0D1pXZXZKThPSw/Reminders";
 
 const FESTIVAL_SHEET_URL =
-  "https://opensheet.elk.sh/1R_YkSwYm5b_e7wj8A0vbnbjTS3ZJG0D1pXZXZKThPSw/Festivals";
+  process.env.FESTIVAL_SHEET_URL || "https://opensheet.elk.sh/1R_YkSwYm5b_e7wj8A0vbnbjTS3ZJG0D1pXZXZKThPSw/Festivals";
 
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // MongoDB connection 
-mongoose.connect({ MONGODB_CONNECTION_STRING },)
+mongoose.connect(process.env.MONGODB_CONNECTION_STRING)
   .then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.log(err));
+  .catch(err => console.error("❌ MongoDB connection error:", err));
 
 // Schema
 const PostSchema = new mongoose.Schema({
@@ -46,8 +48,8 @@ const Post = mongoose.model("Post", PostSchema);
 const twilio = require("twilio");
 
 const client = twilio(
-  { TWILIO_ACCOUNT_SID },
-  { TWILIO_AUTH_TOKEN }
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
 );
 
 async function uploadToCloudinary(mediaUrl) {
@@ -57,8 +59,8 @@ async function uploadToCloudinary(mediaUrl) {
   const imageResponse = await axios.get(mediaUrl, {
     responseType: "arraybuffer",
     auth: {
-      username: { TWILIO_ACCOUNT_SID },
-      password: { TWILIO_AUTH_TOKEN }
+      username: process.env.TWILIO_ACCOUNT_SID,
+      password: process.env.TWILIO_AUTH_TOKEN
     }
   });
 
@@ -68,10 +70,10 @@ async function uploadToCloudinary(mediaUrl) {
 
   const form = new FormData();
   form.append("file", `data:image/jpeg;base64,${base64Image}`);
-  form.append("upload_preset", "n8n_upload");
+  form.append("upload_preset", process.env.CLOUDINARY_UPLOAD_PRESET || "n8n_upload");
 
   const response = await axios.post(
-    { CLOUDINARY_UPLOAD_URL },
+    process.env.CLOUDINARY_UPLOAD_URL,
     form,
     { headers: form.getHeaders() }
   );
@@ -84,7 +86,7 @@ async function uploadToCloudinary(mediaUrl) {
 const Groq = require("groq-sdk");
 
 const groq = new Groq({
-  apiKey: { GROQ_API_KEY }
+  apiKey: process.env.GROQ_API_KEY
 });
 
 async function generateCaptions(input) {
@@ -140,6 +142,7 @@ Output: Wishing you both a lifetime of love and happiness together.`
 // MAIN WEBHOOK
 
 app.post("/webhook", async (req, res) => {
+  res.type("text/xml");
   try {
     const from = req.body.From;
     const text = (req.body.Body || "").trim();
@@ -235,6 +238,14 @@ Drafted successfully
 
         const localPath = await generatePoster(promptText);
         imageUrl = await uploadLocalToCloudinary(localPath);
+
+        // Clean up temporary local poster image file
+        try {
+          fs.unlinkSync(localPath);
+          console.log(`✅ Cleaned up temporary poster file: ${localPath}`);
+        } catch (unlinkErr) {
+          console.error(`Failed to clean up temporary file ${localPath}:`, unlinkErr);
+        }
       }
 
       const captions = await generateCaptions(promptText);
@@ -312,10 +323,10 @@ async function generateAIImage(promptText) {
 async function uploadBufferToCloudinary(buffer) {
   const form = new FormData();
   form.append("file", buffer, "image.png");
-  form.append("upload_preset", "n8n_upload");
+  form.append("upload_preset", process.env.CLOUDINARY_UPLOAD_PRESET || "n8n_upload");
 
   const res = await axios.post(
-    { CLOUDINARY_UPLOAD_URL },
+    process.env.CLOUDINARY_UPLOAD_URL,
     form,
     { headers: form.getHeaders() }
   );
@@ -342,10 +353,10 @@ No text in image.
 async function uploadLocalToCloudinary(filePath) {
   const form = new FormData();
   form.append("file", fs.createReadStream(filePath)); // ✅ now works
-  form.append("upload_preset", "n8n_upload");
+  form.append("upload_preset", process.env.CLOUDINARY_UPLOAD_PRESET || "n8n_upload");
 
   const res = await axios.post(
-    { CLOUDINARY_UPLOAD_URL },
+    process.env.CLOUDINARY_UPLOAD_URL,
     form,
     { headers: form.getHeaders() }
   );
@@ -355,7 +366,7 @@ async function uploadLocalToCloudinary(filePath) {
 
 
 async function loadBackground(promptText) {
-  const { loadImage } = require("canvas");
+  const { loadImage } = require("@napi-rs/canvas");
 
   const urls = [
     `https://images.unsplash.com/photo-1608889175111-e4d0c9d8dc6d?w=1024`,
@@ -410,7 +421,7 @@ async function getDynamicImage(promptText) {
 }
 
 async function generatePoster(promptText) {
-  const { createCanvas, loadImage } = require("canvas");
+  const { createCanvas, loadImage } = require("@napi-rs/canvas");
   const fs = require("fs");
 
   const width = 1024;
@@ -483,10 +494,8 @@ async function fetchFestivals() {
 
 
 function getTodayRows(data) {
-
-  const today = new Date()
-    .toISOString()
-    .split("T")[0];
+  // Format current date in Asia/Kolkata timezone as YYYY-MM-DD
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
 
   return data.filter(
     item =>
@@ -586,7 +595,7 @@ async function processCelebrations() {
     try {
 
       const response = await client.messages.create({
-        from: "whatsapp:+14155238886",
+        from: process.env.TWILIO_WHATSAPP_NUMBER || "whatsapp:+14155238886",
 
         to: item.phone.startsWith("whatsapp:")
           ? item.phone
@@ -662,7 +671,7 @@ async function processReminders() {
     try {
 
       const response = await client.messages.create({
-        from: "whatsapp:+14155238886",
+        from: process.env.TWILIO_WHATSAPP_NUMBER || "whatsapp:+14155238886",
 
         to: item.phone.startsWith("whatsapp:")
           ? item.phone
@@ -736,7 +745,7 @@ async function processFestivals() {
     try {
 
       const response = await client.messages.create({
-        from: "whatsapp:+14155238886",
+        from: process.env.TWILIO_WHATSAPP_NUMBER || "whatsapp:+14155238886",
 
         to: item.phone.startsWith("whatsapp:")
           ? item.phone
