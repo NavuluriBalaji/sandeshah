@@ -1,4 +1,4 @@
-# WhatsApp AI Automation Bot
+# WhatsApp AI Automation Bot.
 
 An AI-powered WhatsApp automation system built using Node.js, Twilio, MongoDB, Groq AI, Gemini AI, Cloudinary, and Google Sheets.
 
